@@ -13,7 +13,7 @@ let lastError = 0;
 let setpoint = 0;
 let currentAngle = 0;
 let speed = 1.0;
-let lastDError = 0; // For filtering
+let lastDError = 0;
 
 // Sliders and controls
 const speedSlider = document.getElementById('speed');
@@ -31,20 +31,19 @@ pSlider.oninput = () => { kp = parseFloat(pSlider.value); pValue.textContent = k
 iSlider.oninput = () => { ki = parseFloat(iSlider.value); iValue.textContent = ki; };
 dSlider.oninput = () => { kd = parseFloat(dSlider.value); dValue.textContent = kd; };
 
-// PID Controller with filtering
+// PID Controller with relaxed clamp
 function computePID(target, current, dt) {
     const error = target - current;
     errorSum = Math.max(Math.min(errorSum + error * dt, 10), -10); // Limit integral windup
     const rawDError = (error - lastError) / dt;
-    // Simple low-pass filter for D term (alpha = 0.1)
-    const dError = lastDError + 0.1 * (rawDError - lastDError);
+    const dError = lastDError + 0.1 * (rawDError - lastDError); // Filtered D term
     lastDError = dError;
     lastError = error;
     const pidOutput = kp * error + ki * errorSum + kd * dError;
-    return Math.max(Math.min(pidOutput, 2), -2); // Tighter clamp
+    return Math.max(Math.min(pidOutput, 10), -10); // Relaxed clamp for more P power
 }
 
-// Autotune (unchanged for brevity, but could be refined)
+// Autotune (unchanged for brevity)
 function autotune() {
     let ku = 0;
     let tu = 0;
