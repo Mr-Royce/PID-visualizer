@@ -12,7 +12,7 @@ let errorSum = 0;
 let lastError = 0;
 let setpoint = 0;
 let currentAngle = 0;
-let speed = 1.0; // Speed factor for oscillation
+let speed = 1.0;
 
 // Sliders and controls
 const speedSlider = document.getElementById('speed');
@@ -30,19 +30,21 @@ pSlider.oninput = () => { kp = parseFloat(pSlider.value); pValue.textContent = k
 iSlider.oninput = () => { ki = parseFloat(iSlider.value); iValue.textContent = ki; };
 dSlider.oninput = () => { kd = parseFloat(dSlider.value); dValue.textContent = kd; };
 
-// Improved PID Controller
+// Improved PID Controller with output clamping
 function computePID(target, current, dt) {
     const error = target - current;
     errorSum = Math.max(Math.min(errorSum + error * dt, 10), -10); // Limit integral windup
     const dError = (error - lastError) / dt;
     lastError = error;
-    return kp * error + ki * errorSum + kd * dError;
+    const pidOutput = kp * error + ki * errorSum + kd * dError;
+    // Clamp output to prevent excessive spinning
+    return Math.max(Math.min(pidOutput, 5), -5);
 }
 
 // Autotune function (simplified Ziegler-Nichols)
 function autotune() {
-    let ku = 0; // Ultimate gain
-    let tu = 0; // Oscillation period
+    let ku = 0;
+    let tu = 0;
     let oscillating = false;
     let lastAngle = 0;
     let crosses = [];
@@ -51,13 +53,12 @@ function autotune() {
 
     function testStep(timestamp) {
         const error = setpoint - currentAngle;
-        currentAngle += testKp * error * 0.05; // Simple proportional control
+        currentAngle += testKp * error * 0.05;
 
-        // Detect oscillation by counting zero crossings
         if (lastAngle < 0 && currentAngle >= 0) {
             crosses.push(timestamp);
             if (crosses.length > 2) {
-                tu = (crosses[crosses.length - 1] - crosses[crosses.length - 3]) / 1000; // Period in seconds
+                tu = (crosses[crosses.length - 1] - crosses[crosses.length - 3]) / 1000;
                 oscillating = true;
             }
         }
@@ -68,12 +69,10 @@ function autotune() {
             requestAnimationFrame(testStep);
         } else {
             ku = testKp;
-            // Ziegler-Nichols tuning for PID
             kp = 0.6 * ku;
             ki = 1.2 * ku / tu;
             kd = 0.075 * ku * tu;
 
-            // Update sliders
             pSlider.value = kp;
             iSlider.value = ki;
             dSlider.value = kd;
@@ -81,16 +80,15 @@ function autotune() {
             iValue.textContent = ki.toFixed(2);
             dValue.textContent = kd.toFixed(2);
 
-            errorSum = 0; // Reset integral
-            animate(); // Resume normal animation
+            errorSum = 0;
+            animate();
         }
     }
 
-    // Disable manual tuning during autotune
     pSlider.disabled = true;
     iSlider.disabled = true;
     dSlider.disabled = true;
-    ki = 0; kd = 0; // Test with P-only
+    ki = 0; kd = 0;
     requestAnimationFrame(testStep);
 }
 
